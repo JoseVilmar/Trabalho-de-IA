@@ -7,7 +7,6 @@ def lerArquivoSTRIPS(caminho):
 
         linha_atual = arquivo.readline().strip()
 
-        # Ler ações, precondições e efeitos
         while linha_atual:
             nomeAcao = linha_atual
             precondicoes = arquivo.readline().strip().split(";")
@@ -19,7 +18,6 @@ def lerArquivoSTRIPS(caminho):
 
             linha_atual = arquivo.readline().strip()
 
-        # Ler estado inicial e objetivo
         linhaInicial = arquivo.readline().strip()
         linhaObjetivo = arquivo.readline().strip()
 
@@ -49,6 +47,10 @@ class Acao:
         self.efeitosPositivos = set()
         self.efeitosNegativos = set()
         self.custo = 1
+        self.pre_pos_idx = set()
+        self.pre_neg_idx = set()
+        self.eff_pos_idx = set()
+        self.eff_neg_idx = set()
 
 # Função para processar ações/criar dicionário de ações
 def processarAcoes(listaAcoes, dicionarioPrecondicoes, dicionarioEfeitos):
@@ -80,12 +82,10 @@ def processarAcoes(listaAcoes, dicionarioPrecondicoes, dicionarioEfeitos):
 def aplicarAcao(estado, acao):
     novo = criarEstado(list(estado.proposicoes))
 
-    # Remover efeitos negativos (índices)
-    for aux in getattr(acao, 'indices_efeitos_negativos', []):
+    for aux in acao.eff_neg_idx:
         novo.proposicoes.discard(aux)
 
-    # Adicionar efeitos positivos (índices)
-    for aux in getattr(acao, 'indices_efeitos_positivos', []):
+    for aux in acao.eff_pos_idx:
         novo.proposicoes.add(aux)
 
     novo.pai = estado
@@ -99,33 +99,14 @@ def sucessores(estado, dicionarioAcoes):
     lista = []
 
     for acao in dicionarioAcoes.values():
-        # Obter índices precondições positivas e negativas
-        indices_pos = getattr(acao, 'indices_precondicoes', [])
-        indices_neg = getattr(acao, 'indices_precondicoes_negadas', [])
-
-        # Verifica que todas as precondições positivas estão presentes
-        aplicavel = True
-        for aux in indices_pos:
-            if aux not in estado.proposicoes:
-                aplicavel = False
-                break
-
-        # Verifica que todas as precondições negadas NÃO estão presentes
-        if aplicavel:
-            for aux in indices_neg:
-                if aux in estado.proposicoes:
-                    aplicavel = False
-                    break
-
-        if aplicavel:
+        if acao.pre_pos_idx.issubset(estado.proposicoes) and acao.pre_neg_idx.isdisjoint(estado.proposicoes):
             novoEstado = aplicarAcao(estado, acao)
             lista.append(novoEstado)
 
     return lista
 
 # Função para verificar se o estado satisfaz o objetivo
-def Objetivo(estado, objetivo, proposicao_para_indice):
-
+def objetivo(estado, objetivo, proposicao_para_indice):
     for proposicao in objetivo:
         if not proposicao:
             continue
@@ -139,7 +120,6 @@ def Objetivo(estado, objetivo, proposicao_para_indice):
                 if aux in estado.proposicoes:
                     return False
             else:
-                # proposição de objetivo desconhecida -> tratar como não satisfeita
                 return False
         else:
             if proposicao in proposicao_para_indice:
@@ -152,9 +132,8 @@ def Objetivo(estado, objetivo, proposicao_para_indice):
 
 # Função para converter proposições para representação vetorial
 def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
-    # Coletar todas as proposições (normalizando '~')
     proposicoes = set()
-    
+
     for acao in dicionarioAcoes.values():
         for precondicao in acao.precondicoes:
             if precondicao:
@@ -168,22 +147,20 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
         for efeito in acao.efeitosNegativos:
             if efeito:
                 proposicoes.add(efeito)
-    
+
     for proposicao in estadoInicial + estadoObjetivo:
         if proposicao:
             chave = proposicao[1:] if proposicao.startswith('~') else proposicao
             proposicoes.add(chave)
 
-    # Criar mapeamentos
     indice_para_proposicao = sorted(proposicoes)
     proposicao_para_indice = {p: i for i, p in enumerate(indice_para_proposicao)}
 
-    # Pré-computar índices em cada ação
     for acao in dicionarioAcoes.values():
-        acao.indices_precondicoes = []
-        acao.indices_precondicoes_negadas = []
-        acao.indices_efeitos_positivos = []
-        acao.indices_efeitos_negativos = []
+        acao.pre_pos_idx = set()
+        acao.pre_neg_idx = set()
+        acao.eff_pos_idx = set()
+        acao.eff_neg_idx = set()
 
         for precondicao in acao.precondicoes:
             if not precondicao:
@@ -191,24 +168,23 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
             if precondicao.startswith('~'):
                 chave = precondicao[1:]
                 if chave in proposicao_para_indice:
-                    acao.indices_precondicoes_negadas.append(proposicao_para_indice[chave])
+                    acao.pre_neg_idx.add(proposicao_para_indice[chave])
             else:
                 if precondicao in proposicao_para_indice:
-                    acao.indices_precondicoes.append(proposicao_para_indice[precondicao])
+                    acao.pre_pos_idx.add(proposicao_para_indice[precondicao])
 
         for efeito in acao.efeitosPositivos:
             if efeito in proposicao_para_indice:
-                acao.indices_efeitos_positivos.append(proposicao_para_indice[efeito])
-        
+                acao.eff_pos_idx.add(proposicao_para_indice[efeito])
+
         for efeito in acao.efeitosNegativos:
             if efeito in proposicao_para_indice:
-                acao.indices_efeitos_negativos.append(proposicao_para_indice[efeito])
+                acao.eff_neg_idx.add(proposicao_para_indice[efeito])
 
-    # Criar vetores de estado
     tamanho = len(proposicao_para_indice)
     vetor_estado_inicial = [0] * tamanho
     vetor_estado_objetivo = [0] * tamanho
-    
+
     for proposicao in estadoInicial:
         if not proposicao:
             continue
@@ -220,7 +196,7 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
             valor = 1
         if chave in proposicao_para_indice:
             vetor_estado_inicial[proposicao_para_indice[chave]] = valor
-    
+
     for proposicao in estadoObjetivo:
         if not proposicao:
             continue
@@ -232,11 +208,5 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
             valor = 1
         if chave in proposicao_para_indice:
             vetor_estado_objetivo[proposicao_para_indice[chave]] = valor
-
-    for acao in dicionarioAcoes.values():
-        acao.set_precondicoes = set(acao.indices_precondicoes)
-        acao.set_precondicoes_negadas = set(acao.indices_precondicoes_negadas)
-        acao.set_efeitos_pos = set(acao.indices_efeitos_positivos)
-        acao.set_efeitos_neg = set(acao.indices_efeitos_negativos)
 
     return proposicao_para_indice, indice_para_proposicao, vetor_estado_inicial, vetor_estado_objetivo
