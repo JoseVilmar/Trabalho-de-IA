@@ -105,30 +105,8 @@ def sucessores(estado, dicionarioAcoes):
 
     return lista
 
-# Função para verificar se o estado satisfaz o objetivo
-def objetivo(estado, objetivo, proposicao_para_indice):
-    for proposicao in objetivo:
-        if not proposicao:
-            continue
-
-        if proposicao.startswith('~'):
-            chave = proposicao[1:]
-
-            if chave in proposicao_para_indice:
-                aux = proposicao_para_indice[chave]
-
-                if aux in estado.proposicoes:
-                    return False
-            else:
-                return False
-        else:
-            if proposicao in proposicao_para_indice:
-                aux = proposicao_para_indice[proposicao]
-                if aux not in estado.proposicoes:
-                    return False
-            else:
-                return False
-    return True
+def objetivo(estado, objetivo_indices):
+    return objetivo_indices.issubset(estado.proposicoes)
 
 # Função para converter proposições para representação vetorial
 def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
@@ -150,8 +128,7 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
 
     for proposicao in estadoInicial + estadoObjetivo:
         if proposicao:
-            chave = proposicao[1:] if proposicao.startswith('~') else proposicao
-            proposicoes.add(chave)
+            proposicoes.add(proposicao)
 
     indice_para_proposicao = sorted(proposicoes)
     proposicao_para_indice = {p: i for i, p in enumerate(indice_para_proposicao)}
@@ -181,32 +158,15 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
             if efeito in proposicao_para_indice:
                 acao.eff_neg_idx.add(proposicao_para_indice[efeito])
 
-    tamanho = len(proposicao_para_indice)
-    vetor_estado_inicial = [0] * tamanho
-    vetor_estado_objetivo = [0] * tamanho
+    inicial_indices = set()
+    objetivo_indices = set()
 
     for proposicao in estadoInicial:
-        if not proposicao:
-            continue
-        if proposicao.startswith('~'):
-            chave = proposicao[1:]
-            valor = -1
-        else:
-            chave = proposicao
-            valor = 1
-        if chave in proposicao_para_indice:
-            vetor_estado_inicial[proposicao_para_indice[chave]] = valor
+        if proposicao and proposicao in proposicao_para_indice:
+            inicial_indices.add(proposicao_para_indice[proposicao])
 
     for proposicao in estadoObjetivo:
-        if not proposicao:
-            continue
-        if proposicao.startswith('~'):
-            chave = proposicao[1:]
-            valor = -1
-        else:
-            chave = proposicao
-            valor = 1
-        if chave in proposicao_para_indice:
-            vetor_estado_objetivo[proposicao_para_indice[chave]] = valor
+        if proposicao and proposicao in proposicao_para_indice:
+            objetivo_indices.add(proposicao_para_indice[proposicao])
 
-    return proposicao_para_indice, indice_para_proposicao, vetor_estado_inicial, vetor_estado_objetivo
+    return proposicao_para_indice, indice_para_proposicao, inicial_indices, objetivo_indices
