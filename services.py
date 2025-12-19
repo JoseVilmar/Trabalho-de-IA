@@ -1,4 +1,3 @@
-# Lê o arquivo STRIPS de acordo com o formato especifico das entradas dadas pelo professor
 def lerArquivoSTRIPS(caminho):
     with open(caminho, 'r') as arquivo:
         listaAcoes = []
@@ -27,32 +26,39 @@ def lerArquivoSTRIPS(caminho):
         return (listaAcoes, dicionarioPrecondicoes, dicionarioEfeitos,
                 estadoInicial, estadoObjetivo)
 
-#Estrutura de dados para representar um estado no espaço de busca
+
 class Estado:
-    def __init__(self, proposicoes=None):
+    def __init__(self, proposicoes=None, mascara=0):
         self.proposicoes = set(proposicoes) if proposicoes is not None else set()
+        self.mascara = mascara
         self.pai = None
         self.acaoUsada = None
-        self.custo = 0
 
-# Função para criar um novo estado
+
 def criarEstado(proposicoes=None):
-    return Estado(proposicoes)
+    mascara = 0
+    if proposicoes:
+        for p in proposicoes:
+            mascara |= (1 << p)
+    return Estado(proposicoes, mascara)
 
-# Estrutura de dados para representar uma ação
+
 class Acao:
     def __init__(self):
         self.nome = ""
         self.precondicoes = set()
         self.efeitosPositivos = set()
         self.efeitosNegativos = set()
-        self.custo = 1
-        self.pre_pos_idx = set()
-        self.pre_neg_idx = set()
+
+        self.pre_idx = set()
         self.eff_pos_idx = set()
         self.eff_neg_idx = set()
 
-# Função para processar ações/criar dicionário de ações
+        self.pre_mask = 0
+        self.eff_pos_mask = 0
+        self.eff_neg_mask = 0
+
+
 def processarAcoes(listaAcoes, dicionarioPrecondicoes, dicionarioEfeitos):
     dicionarioAcoes = {}
 
@@ -65,58 +71,61 @@ def processarAcoes(listaAcoes, dicionarioPrecondicoes, dicionarioEfeitos):
         novaAcao.precondicoes = set(precondicoes)
         novaAcao.efeitosPositivos = set()
         novaAcao.efeitosNegativos = set()
-        novaAcao.custo = 1
 
         for efeito in efeitos:
             if efeito.startswith("~"):
                 novaAcao.efeitosNegativos.add(efeito[1:])
             else:
                 novaAcao.efeitosPositivos.add(efeito)
-                novaAcao.custo += 1
 
         dicionarioAcoes[nome] = novaAcao
 
     return dicionarioAcoes
 
-# Função para aplicar uma ação a um estado
+
 def aplicarAcao(estado, acao):
-    novo = criarEstado(list(estado.proposicoes))
+    novo_proposicoes = estado.proposicoes.copy()
 
-    for aux in acao.eff_neg_idx:
-        novo.proposicoes.discard(aux)
+    for idx in acao.eff_neg_idx:
+        novo_proposicoes.discard(idx)
 
-    for aux in acao.eff_pos_idx:
-        novo.proposicoes.add(aux)
+    for idx in acao.eff_pos_idx:
+        novo_proposicoes.add(idx)
 
+    nova_mascara = estado.mascara
+    nova_mascara &= ~acao.eff_neg_mask
+    nova_mascara |= acao.eff_pos_mask
+
+    novo = Estado(novo_proposicoes, nova_mascara)
     novo.pai = estado
     novo.acaoUsada = acao.nome
-    novo.custo = estado.custo + acao.custo
 
     return novo
 
-# Função para gerar sucessores de um estado
+
 def sucessores(estado, dicionarioAcoes):
     lista = []
+    mascara_estado = estado.mascara
 
     for acao in dicionarioAcoes.values():
-        if acao.pre_pos_idx.issubset(estado.proposicoes) and acao.pre_neg_idx.isdisjoint(estado.proposicoes):
+        if (mascara_estado & acao.pre_mask) == acao.pre_mask:
             novoEstado = aplicarAcao(estado, acao)
             lista.append(novoEstado)
 
     return lista
 
+
 def objetivo(estado, objetivo_indices):
     return objetivo_indices.issubset(estado.proposicoes)
 
-# Função para converter proposições para representação vetorial
+
 def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
     proposicoes = set()
 
     for acao in dicionarioAcoes.values():
         for precondicao in acao.precondicoes:
             if precondicao:
-                chave = precondicao[1:] if precondicao.startswith('~') else precondicao
-                proposicoes.add(chave)
+                proposicoes.add(precondicao)
 
         for efeito in acao.efeitosPositivos:
             if efeito:
@@ -134,29 +143,34 @@ def converter_para_vetor(dicionarioAcoes, estadoInicial, estadoObjetivo):
     proposicao_para_indice = {p: i for i, p in enumerate(indice_para_proposicao)}
 
     for acao in dicionarioAcoes.values():
-        acao.pre_pos_idx = set()
-        acao.pre_neg_idx = set()
+        acao.pre_idx = set()
         acao.eff_pos_idx = set()
         acao.eff_neg_idx = set()
+        
+        acao.pre_mask = 0
+        acao.eff_pos_mask = 0
+        acao.eff_neg_mask = 0
 
         for precondicao in acao.precondicoes:
             if not precondicao:
                 continue
-            if precondicao.startswith('~'):
-                chave = precondicao[1:]
-                if chave in proposicao_para_indice:
-                    acao.pre_neg_idx.add(proposicao_para_indice[chave])
-            else:
-                if precondicao in proposicao_para_indice:
-                    acao.pre_pos_idx.add(proposicao_para_indice[precondicao])
+
+            if precondicao in proposicao_para_indice:
+                idx = proposicao_para_indice[precondicao]
+                acao.pre_idx.add(idx)
+                acao.pre_mask |= (1 << idx)
 
         for efeito in acao.efeitosPositivos:
             if efeito in proposicao_para_indice:
-                acao.eff_pos_idx.add(proposicao_para_indice[efeito])
+                idx = proposicao_para_indice[efeito]
+                acao.eff_pos_idx.add(idx)
+                acao.eff_pos_mask |= (1 << idx)
 
         for efeito in acao.efeitosNegativos:
             if efeito in proposicao_para_indice:
-                acao.eff_neg_idx.add(proposicao_para_indice[efeito])
+                idx = proposicao_para_indice[efeito]
+                acao.eff_neg_idx.add(idx)
+                acao.eff_neg_mask |= (1 << idx)
 
     inicial_indices = set()
     objetivo_indices = set()
