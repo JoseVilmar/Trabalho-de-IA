@@ -2,7 +2,7 @@ from services import lerArquivoSTRIPS, processarAcoes, converter_para_vetor, cri
 import solvers
 import time
 import os
-from concurrent.futures import ProcessPoolExecutor, TimeoutError
+from concurrent.futures import ProcessPoolExecutor
 
 
 def executar_algoritmo_wrapper(nome_algoritmo, func, estado_inicial, objetivos, acoes):
@@ -11,17 +11,26 @@ def executar_algoritmo_wrapper(nome_algoritmo, func, estado_inicial, objetivos, 
         resultado, espaco_mb = func(estado_inicial, objetivos, acoes)
         fim = time.time()
 
-        tempo = fim - inicio
+        if resultado == solvers.TIMEOUT:
+            return {
+                'algoritmo': nome_algoritmo,
+                'sucesso': False,
+                'timeout': True,
+                'tempo': fim - inicio,
+                'espaco_mb': espaco_mb
+            }
+
         passos = len(resultado) if resultado else 0
 
         return {
             'algoritmo': nome_algoritmo,
             'sucesso': resultado is not None,
             'passos': passos,
-            'tempo': tempo,
+            'tempo': fim - inicio,
             'espaco_mb': espaco_mb,
             'caminho': resultado
         }
+
     except Exception as e:
         return {
             'algoritmo': nome_algoritmo,
@@ -36,8 +45,9 @@ def run_iddfs(estado, objetivos, acoes):
 
 def run_dls(estado, objetivos, acoes):
     medidor = solvers.MedidorEspaco()
+    controle = solvers.ControleTempo(7200)
     resultado = solvers.busca_profundidade_limitada(
-        estado, objetivos, acoes, 50, set(), medidor
+        estado, objetivos, acoes, 50, set(), medidor, controle
     )
     return resultado, medidor.espaco_mb()
 
@@ -48,7 +58,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         caminho_arquivo = sys.argv[1]
     else:
-        caminho_arquivo = 'planningsat/planningsat/blocks-4-0.strips' # pode alterar
+        caminho_arquivo = 'planningsat/planningsat/blocks-4-0.strips'
 
     if not os.path.exists(caminho_arquivo):
         print(f"Erro: Arquivo {caminho_arquivo} não encontrado.")
@@ -70,47 +80,45 @@ if __name__ == '__main__':
     tarefas = [
         ('Busca em Largura (BFS)', solvers.busca_em_largura),
         ('A* (A-Star)', solvers.busca_a_star),
-        ('DLS', run_dls),
-        ('IDDFS (Lim=50)', run_iddfs)
+        ('IDDFS (Lim=50)', run_iddfs),
+        ('DLS', run_dls)
     ]
 
     print(f"\nIniciando execução paralela de {len(tarefas)} algoritmos usando multiprocessamento...")
     print("Aguarde... (algoritmos mais pesados podem demorar)\n")
 
     with ProcessPoolExecutor() as executor:
-        futures = []
-        for nome, func in tarefas:
-            futures.append(
-                executor.submit(
-                    executar_algoritmo_wrapper,
-                    nome,
-                    func,
-                    estado_inicial_obj,
-                    objetivo_indices,
-                    dicionarioAcoes
-                )
+        futures = [
+            executor.submit(
+                executar_algoritmo_wrapper,
+                nome,
+                func,
+                estado_inicial_obj,
+                objetivo_indices,
+                dicionarioAcoes
             )
+            for nome, func in tarefas
+        ]
 
         for future in futures:
-            try:
-                res = future.result(timeout=7200)  # 2 horas para timeout
-                print("-" * 60)
-                print(f"Algoritmo: {res['algoritmo']}")
+            res = future.result()
 
-                if res.get('erro'):
-                    print(f"Status: ERRO ({res['erro']})")
+            print("-" * 60)
+            print(f"Algoritmo: {res['algoritmo']}")
 
-                elif res['sucesso']:
-                    print("Status: SUCESSO")
-                    print(f"Tempo: {res['tempo']:.4f} segundos")
-                    print(f"Espaço (aprox.): {res['espaco_mb']:.4f} MB")
-                    print(f"Comprimento da Solução: {res['passos']} ações")
+            if res.get('erro'):
+                print(f"Status: ERRO ({res['erro']})")
 
-                else:
-                    print("Status: FALHA / Não encontrou solução ou atingiu limite")
+            elif res.get('timeout'):
+                print("Status: TIMEOUT")
+                print(f"Tempo: {res['tempo']:.4f} segundos")
+                print(f"Espaço (aprox.): {res['espaco_mb']:.4f} MB")
 
-            except TimeoutError:
-                print("-" * 60)
-                print(f"Algoritmo: {res.get('algoritmo', 'DESCONHECIDO') if 'res' in locals() else 'DESCONHECIDO'}")
-                print("Status: TIMEOUT (2 horas excedidas)")
+            elif res['sucesso']:
+                print("Status: SUCESSO")
+                print(f"Tempo: {res['tempo']:.4f} segundos")
+                print(f"Espaço (aprox.): {res['espaco_mb']:.4f} MB")
+                print(f"Comprimento da Solução: {res['passos']} ações")
 
+            else:
+                print("Status: FALHA / Não encontrou solução ou atingiu limite")
