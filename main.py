@@ -34,7 +34,7 @@ def run_iddfs(estado, objetivos, acoes):
     return solvers.busca_profundidade_iterativa(estado, objetivos, acoes, 50)
 
 
-def run_dfs(estado, objetivos, acoes):
+def run_dls(estado, objetivos, acoes):
     medidor = solvers.MedidorEspaco()
     resultado = solvers.busca_profundidade_limitada(
         estado, objetivos, acoes, 50, set(), medidor
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     tarefas = [
         ('Busca em Largura (BFS)', solvers.busca_em_largura),
         ('A* (A-Star)', solvers.busca_a_star),
-        ('DFS', run_dfs),
+        ('DLS', run_dls),
         ('IDDFS (Lim=50)', run_iddfs)
     ]
 
@@ -113,3 +113,4 @@ if __name__ == '__main__':
                 print("-" * 60)
                 print(f"Algoritmo: {res.get('algoritmo', 'DESCONHECIDO') if 'res' in locals() else 'DESCONHECIDO'}")
                 print("Status: TIMEOUT (2 horas excedidas)")
+
