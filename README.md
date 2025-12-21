@@ -8,13 +8,12 @@ Este projeto implementa um planejador para problemas definidos no formato STRIPS
 O sistema executa os seguintes algoritmos em paralelo para comparação:
 
 1.  **Busca em Largura (BFS)**: Garante a solução ótima (menor número de ações), mas explora muitos estados.
-2.  **A* (A-Star)**: Utiliza a heurística `h_add` para guiar a busca. É o algoritmo mais eficiente para este domínio.
+2.  **A-Star**: Utiliza a heurística `h_max` para guiar a busca. É o algoritmo mais eficiente para este domínio.
 3.  **IDDFS (Iterative Deepening DFS)**: Busca em profundidade com limite iterativo. Otimizado com backtracking para baixo consumo de memória.
-4.  **Busca Bidirecional**: Tenta encontrar o caminho partindo simultaneamente do estado inicial (progressão) e dos objetivos (regressão).
 
-## 🧠 Heurística: `h_add` (Aditiva)
+## 🧠 Heurística: `h_max` (Aditiva)
 
-Para o algoritmo A*, implementamos a heurística **`h_add`** (Additive Heuristic).
+Para o algoritmo A*, implementamos a heurística **`h_max`** (Additive Heuristic).
 *   **Conceito**: Estima o custo para alcançar o objetivo somando os custos de alcançar cada submeta individualmente em um problema relaxado (onde os efeitos negativos das ações são ignorados).
 *   **Implementação**: Utilizamos uma abordagem baseada em **Dijkstra** sobre o Grafo de Planejamento Relaxado (RPG). Isso propaga os custos de forma eficiente, evitando iterações desnecessárias sobre ações irrelevantes.
 
@@ -36,18 +35,18 @@ Para lidar com problemas maiores (como `blocks-10-0` e superiores), aplicamos ot
 
 ## 📂 Estrutura do Código
 
-*   `main_thread.py`: Ponto de entrada. Carrega o problema, configura os processos e exibe os resultados.
-*   `solvers.py`: Implementação dos algoritmos de busca (A*, BFS, IDDFS, Bidirecional) e da heurística `h_add`.
+*   `main.py`: Ponto de entrada. Carrega o problema, configura os processos e exibe os resultados.
+*   `solvers.py`: Implementação dos algoritmos de busca (A*, BFS, IDDFS, DLS) e da heurística `h_max`.
 *   `services.py`: Gerenciamento de estado, leitura de arquivos STRIPS e lógica de sucessores com otimização de bitmasks.
 
 ## 🛠️ Como Executar
 
 1.  Certifique-se de ter Python 3.10+ instalado.
-2.  Edite o arquivo `main_thread.py` para escolher o problema desejado na variável `caminho_arquivo`.
+2.  Edite o arquivo `main.py` para escolher o problema desejado na variável `caminho_arquivo`.
 3.  Execute:
 
 ```bash
-python3 main_thread.py
+python3 main.py
 ```
 
 ## 📊 Resultados Esperados
